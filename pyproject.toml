@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "science-paper-linkedin-post"
+version = "0.1.0"
+description = "Extract features from science papers from arxiv and use GenAi to create a LinkedIn post for it"
+authors = ["Elias Haroun <elias.haroun@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+anthropic = "^0.45.2"
+requests = "^2.32.3"
+arxiv = "^2.1.3"
+nltk = "^3.9.1"
+openai = "^1.61.1"
+fitz = "^0.0.1.dev2"
+pymupdf = "^1.25.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

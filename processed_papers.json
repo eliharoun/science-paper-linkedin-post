@@ -1,0 +1,26 @@
+{
+  "title": "Great Models Think Alike and this Undermines AI Oversight",
+  "authors": [
+    "Shashwat Goel",
+    "Joschka Struber",
+    "Ilze Amanda Auzina",
+    "Karuna K Chandra",
+    "Ponnurangam Kumaraguru",
+    "Douwe Kiela",
+    "Ameya Prabhu",
+    "Matthias Bethge",
+    "Jonas Geiping"
+  ],
+  "published": "2025-02-06",
+  "url": "http://arxiv.org/pdf/2502.04313v1",
+  "primary_category": "cs.LG",
+  "categories": [
+    "cs.LG",
+    "cs.AI",
+    "cs.CL"
+  ],
+  "key_findings": "For the first model we set it’s accuracy to 90%, it always favors the 1st option, and has a high calibration, 0.99, meaning the model is highly confident in it’s predictions (e.g.\nsingle data point is [0.99, 0.01]).\nFor the second model we iteratively increase it’s accuracy by adjusting it’s calibration from 0.01 to 0.99 for the first option, as such, making the models more similar artificially.",
+  "technical_innovation": "We use the confidence weighted loss proposed by  Burns et al.",
+  "practical_applications": "No explicit applications extracted",
+  "impact": "Our paper shows the importance of measuring functional similarity for language models.\nWe then use it to study the implications of similarity for AI over- sight – showing affinity bias in AI judges, and the role of complementary knowledge when training on LM annota- tions, such as in weak-to-strong generalization."
+}
