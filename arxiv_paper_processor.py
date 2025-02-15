@@ -9,17 +9,19 @@ from paper import PaperFormat, Paper
 from text_processor import TextProcessor
 from typing import Dict, List, Optional
 import logging
-from concurrent.futures import ThreadPoolExecutor
+from queue import Queue
 import os
 from paper import Paper
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 # Download required NLTK data
 nltk.download("punkt", quiet=True)
-nltk.download('punkt_tab', quiet=True)
+nltk.download("punkt_tab", quiet=True)
 
 
 class ArxivPaperProcessor:
@@ -31,8 +33,7 @@ class ArxivPaperProcessor:
             cache_dir: Directory for caching downloaded PDFs
         """
         self.cache_dir = cache_dir
-        self.client = arxiv.Client()
-
+        self.arxiv_client = arxiv.Client()
 
         # Create cache directory if it doesn't exist
         os.makedirs(cache_dir, exist_ok=True)
@@ -44,16 +45,16 @@ class ArxivPaperProcessor:
     def extract_pdf_content(self, pdf_url: str, paper_id: str) -> Optional[Dict]:
         """
         Extract PDF content
-        
+
         Args:
             pdf_url: URL of the PDF to download
             paper_id: arXiv ID of the paper
-            
+
         Returns:
             Dictionary containing extracted text and metadata
         """
         cache_path = self.get_cached_pdf_path(paper_id)
-        
+
         try:
             # Check cache first
             if os.path.exists(cache_path):
@@ -64,27 +65,27 @@ class ArxivPaperProcessor:
                 logger.info(f"Downloading PDF for {paper_id}")
                 response = requests.get(pdf_url)
                 response.raise_for_status()
-                
+
                 # Save to cache
-                with open(cache_path, 'wb') as f:
+                with open(cache_path, "wb") as f:
                     f.write(response.content)
                 pdf_path = cache_path
-            
+
             # Process PDF using PyMuPDF
             doc = pymupdf.open(pdf_path)
-            
+
             # Extract text and maintain structure
             content = {
-                'full_text': '',
-                'sections': [],
-                'figures': [],
-                'tables': [],
-                'equations': []
+                "full_text": "",
+                "sections": [],
+                "figures": [],
+                "tables": [],
+                "equations": [],
             }
-            
+
             for page_num in range(len(doc)):
                 page = doc[page_num]
-                
+
                 # Extract text with formatting
                 blocks = page.get_text("dict")["blocks"]
                 for block in blocks:
@@ -95,90 +96,83 @@ class ArxivPaperProcessor:
                                 is_bold = span["flags"] & 2**4 != 0
                                 is_italic = span["flags"] & 2**1 != 0
                                 font_size = span["size"]
-                                
+
                                 text = span["text"]
                                 # Check if the text is a title based on formatting and content
                                 if is_bold and TextProcessor.is_title(text):
                                     # Add a new section with the title
-                                    content['sections'].append({
-                                        'title': text,
-                                        'content': '',
-                                        'level': 1 if font_size > 12 else 2 # Determine section level based on font size
-                                    })
+                                    content["sections"].append(
+                                        {
+                                            "title": text,
+                                            "content": "",
+                                            "level": (
+                                                1 if font_size > 12 else 2
+                                            ),  # Determine section level based on font size
+                                        }
+                                    )
                                 else:
                                     # Append text to the last section's content if it exists
-                                    if content['sections']:
-                                        content['sections'][-1]['content'] += text + ' '
+                                    if content["sections"]:
+                                        content["sections"][-1]["content"] += text + " "
                                     # Append text to the full text content
-                                    content['full_text'] += text + ' '
+                                    content["full_text"] += text + " "
                 # Extract images as metadata only
                 for img_index, img in enumerate(page.get_images()):
-                    content['figures'].append({
-                        'page': page_num + 1,
-                        'index': img_index,
-                        'type': 'image'
-                    })
-                
+                    content["figures"].append(
+                        {"page": page_num + 1, "index": img_index, "type": "image"}
+                    )
+
                 # Convert table data to serializable format
                 tables = page.find_tables()
                 for table in tables:
                     serializable_table = {
-                        'page': page_num + 1,
-                        'rows': len(table.cells),
-                        'cols': len(table.cells[0]) if table.cells else 0,
-                        'type': 'table'
+                        "page": page_num + 1,
+                        "rows": len(table.cells),
+                        "cols": len(table.cells[0]) if table.cells else 0,
+                        "type": "table",
                     }
-                    content['tables'].append(serializable_table)
-            
+                    content["tables"].append(serializable_table)
+
             # Clean the extracted text
-            content['full_text'] = TextProcessor.clean_text(content['full_text'])
-            
-            
+            content["full_text"] = TextProcessor.clean_text(content["full_text"])
+
             # Detect paper format and structure
-            paper_format = PaperFormat.detect_format(content['full_text'])
-            content['format'] = paper_format
-            
+            paper_format = PaperFormat.detect_format(content["full_text"])
+            content["format"] = paper_format
+
             # Close the document
             doc.close()
-            
+
             return content
-            
+
         except Exception as e:
             logger.error(f"Error extracting PDF content from {pdf_url}: {str(e)}")
             return None
 
-    def fetch_recent_cs_papers(self, max_results:int=50) -> List[Paper]:
-        """Fetch recent CS papers with parallel processing"""
+    def fetch_recent_cs_papers(
+        self, category: str = "cs.LG", max_results: int = 50
+    ) -> Queue:
+        """Fetch recent CS papers from arXiv"""
         search = arxiv.Search(
-            query="cat:cs.*",
+            query=f"cat:{category}",
             max_results=max_results,
             sort_by=arxiv.SortCriterion.SubmittedDate,
         )
 
-        papers = []
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            future_to_paper = {}
+        queue = Queue()
+        for result in self.arxiv_client.results(search):
+            processed_paper = self.process_single_paper(result)
+            if processed_paper:
+                queue.put(processed_paper)
 
-            for result in self.client.results(search):
-                future = executor.submit(self.process_single_paper, result)
-                future_to_paper[future] = result
+        return queue
 
-            for future in future_to_paper:
-                try:
-                    paper = future.result()
-                    if paper:
-                        papers.append(paper)
-                except Exception as e:
-                    logger.error(f"Error processing paper: {str(e)}")
-
-        return papers
-    
     def fetch_paper_by_url(self, paper_url: str) -> Paper:
         """Fetch and process a single paper by its arXiv URL"""
-        search = arxiv.Search(id_list=[paper_url.split('/')[-1]])
+        search = arxiv.Search(id_list=[paper_url.split("/")[-1]])
 
         try:
-            result = next(self.client.results(search))
+            result = next(self.arxiv_client.results(search))
             return self.process_single_paper(result)
         except Exception as e:
             logger.error(f"Error fetching paper by URL {paper_url}: {str(e)}")
@@ -187,14 +181,15 @@ class ArxivPaperProcessor:
     def process_single_paper(self, result: arxiv.Result) -> Paper:
         """Process a single paper"""
         try:
-            paper = Paper(title=result.title,
+            paper = Paper(
+                title=result.title,
                 authors=[author.name for author in result.authors],
                 published=result.published.strftime("%Y-%m-%d"),
                 url=result.pdf_url,
                 abstract=result.summary,
                 arxiv_id=result.entry_id.split("/")[-1],
                 primary_category=result.primary_category,
-                categories=result.categories
+                categories=result.categories,
             )
 
             # Extract PDF content
@@ -215,32 +210,42 @@ class ArxivPaperProcessor:
         # Look for results in different sections
         for section in paper.sections:
             if any(
-            keyword in section["title"].lower()
-            for keyword in ["result", "finding", "evaluation", "experiment", "analysis", "discussion", "conclusion", "performance"]
+                keyword in section["title"].lower()
+                for keyword in [
+                    "result",
+                    "finding",
+                    "evaluation",
+                    "experiment",
+                    "analysis",
+                    "discussion",
+                    "conclusion",
+                    "performance",
+                ]
             ):
                 # Extract sentences with numerical results or key phrases
                 sentences = sent_tokenize(section["content"])
                 for sentence in sentences:
                     if re.search(
-                    r"\d+%|\d+\.\d+|significant|improved|achieved|outperformed|decreased|increased|reduced|enhanced|superior", sentence
+                        r"\d+%|\d+\.\d+|significant|improved|achieved|outperformed|decreased|increased|reduced|enhanced|superior",
+                        sentence,
                     ) or any(
-                    phrase in sentence.lower()
-                    for phrase in [
-                        "we found",
-                        "shows that",
-                        "demonstrates",
-                        "proves",
-                        "results indicate",
-                        "we observed",
-                        "analysis reveals",
-                        "data suggests",
-                        "evidence shows",
-                        "study confirms",
-                        "experiments demonstrate",
-                        "findings suggest",
-                        "we conclude",
-                        "this implies"
-                    ]
+                        phrase in sentence.lower()
+                        for phrase in [
+                            "we found",
+                            "shows that",
+                            "demonstrates",
+                            "proves",
+                            "results indicate",
+                            "we observed",
+                            "analysis reveals",
+                            "data suggests",
+                            "evidence shows",
+                            "study confirms",
+                            "experiments demonstrate",
+                            "findings suggest",
+                            "we conclude",
+                            "this implies",
+                        ]
                     ):
                         findings.append(sentence)
 
@@ -310,16 +315,16 @@ class ArxivPaperProcessor:
             if any(
                 keyword in section["title"].lower()
                 for keyword in [
-                    "method", 
-                    "approach", 
-                    "technique", 
+                    "method",
+                    "approach",
+                    "technique",
                     "methodology",
                     "design",
                     "procedure",
                     "mechanism",
                     "strategy",
                     "process",
-                    "workflow"
+                    "workflow",
                 ]
             ):
                 sentences = sent_tokenize(section["content"])
@@ -443,7 +448,12 @@ class ArxivPaperProcessor:
             else "No explicit impact statements extracted"
         )
 
-    def process_papers(self, max_results:int=50, output_file: str = "processed_papers.json"):
+    def process_papers(
+        self,
+        category: str = "cs.LG",
+        max_results: int = 50,
+        output_file: str = "processed_papers.json",
+    ):
         """
         Main function to process papers
 
@@ -453,25 +463,30 @@ class ArxivPaperProcessor:
         try:
             # Fetch papers
             logger.info("Fetching recent CS papers...")
-            papers = self.fetch_recent_cs_papers(max_results)
+            papers = self.fetch_recent_cs_papers(category, max_results)
 
             # Process each paper
             processed_papers = []
-            for paper in papers:
+            while not papers.empty():
                 try:
+                    paper = papers.get()
                     logger.info(f"Processing paper: {paper.title}")
 
                     processed_paper = {
-                        'title': paper.title,
-                        'authors': paper.authors,
+                        "title": paper.title,
+                        "authors": paper.authors,
                         "published": paper.published,
-                        'url': paper.url,
+                        "url": paper.url,
                         "primary_category": paper.primary_category,
                         "categories": paper.categories,
                         "key_findings": self._extract_key_findings(paper),
-                        "technical_innovation": self._extract_technical_innovation(paper),
-                        "practical_applications": self._extract_practical_applications(paper),
-                        "impact": self._extract_impact(paper)
+                        "technical_innovation": self._extract_technical_innovation(
+                            paper
+                        ),
+                        "practical_applications": self._extract_practical_applications(
+                            paper
+                        ),
+                        "impact": self._extract_impact(paper),
                     }
                     processed_papers.append(processed_paper)
 
@@ -480,20 +495,12 @@ class ArxivPaperProcessor:
                     continue
 
             # Save results
-            print(f"processed_papers: {processed_papers}")
             with open(output_file, "w", encoding="utf-8") as f:
                 json.dump(processed_papers, f, indent=2, ensure_ascii=False)
 
             logger.info(
-                f"Processed {len(processed_papers)} papers and saved to {output_file}"
+                f"Processed {len(processed_papers)} papers successfully and saved to {output_file}"
             )
-
-            # Print a sample post
-            if processed_papers:
-                logger.info("\nSample LinkedIn Post:")
-                logger.info("-" * 50)
-                logger.info(processed_papers[0]['linkedin_post'])
-                logger.info("-" * 50)
 
         except Exception as e:
             logger.error(f"Error in main processing loop: {str(e)}")
@@ -517,18 +524,18 @@ class ArxivPaperProcessor:
             logger.info(f"Processing paper: {paper.title}")
 
             processed_paper = {
-                'title': paper.title,
-                'authors': paper.authors,
+                "title": paper.title,
+                "authors": paper.authors,
                 "published": paper.published,
-                'url': paper.url,
+                "url": paper.url,
                 "primary_category": paper.primary_category,
                 "categories": paper.categories,
                 "key_findings": self._extract_key_findings(paper),
                 "technical_innovation": self._extract_technical_innovation(paper),
                 "practical_applications": self._extract_practical_applications(paper),
-                "impact": self._extract_impact(paper)
+                "impact": self._extract_impact(paper),
             }
-            
+
             logger.info(f"Processed paper successfully.")
         except Exception as e:
             logger.error(f"Error processing paper: {str(e)}")

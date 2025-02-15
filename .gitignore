@@ -1,0 +1,58 @@
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.idea_modules/
+
+# Compiled files
+*.class
+target/
+build/
+dist/
+
+# Package files
+*.jar
+*.war
+*.ear
+*.zip
+
+# Logs
+*.log
+log/
+logs/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+
+# Gradle
+.gradle/
+build/
+
+# Node (if using frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Debug files
+*.swp
+*.swo
+
+# Download files
+paper_cache/

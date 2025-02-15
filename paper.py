@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 from collections import defaultdict
 import re
 
+
 @dataclass
 class Paper:
     title: str
@@ -20,12 +21,12 @@ class Paper:
     equations: Optional[List[Dict]] = None
 
     def update(self, content: dict):
-        self.full_text = content.get('full_text', self.full_text)
-        self.sections = content.get('sections', self.sections)
-        self.figures = content.get('figures', self.figures)
-        self.tables = content.get('tables', self.tables)
-        self.equations = content.get('equations', self.equations)
-        
+        self.full_text = content.get("full_text", self.full_text)
+        self.sections = content.get("sections", self.sections)
+        self.figures = content.get("figures", self.figures)
+        self.tables = content.get("tables", self.tables)
+        self.equations = content.get("equations", self.equations)
+
 
 class PaperFormat:
     """Class to handle different research paper formats"""
@@ -90,7 +91,8 @@ class PaperFormat:
             if format_scores
             else "standard"
         )
-    
+
+
 class PaperSection:
     """Class to represent a section of a research paper"""
 
