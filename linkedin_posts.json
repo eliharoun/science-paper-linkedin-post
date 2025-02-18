@@ -1,0 +1,12 @@
+{
+  "title": "PowerInfer: Fast Large Language Model Serving with a Consumer-grade GPU",
+  "arxiv_id": "2312.12456v2",
+  "published": "2023-12-16",
+  "authors": [
+    "Yixin Song",
+    "Zeyu Mi",
+    "Haotong Xie",
+    "Haibo Chen"
+  ],
+  "linkedin_post": "Here's a LinkedIn post about the PowerInfer research:\n\n🚀 Breakthrough: Running Advanced AI Language Models on Your Gaming PC!\n\nEver wished you could run powerful AI models like GPT locally without spending $20,000 on enterprise hardware? Researchers from Shanghai Jiao Tong University have just made this possible with PowerInfer, and the results are incredible.\n\nHere's why this matters: Until now, running large language models (LLMs) required expensive server-grade GPUs. PowerInfer changes the game by enabling these models to run efficiently on consumer graphics cards like the NVIDIA RTX 4090, which costs roughly 1/10th of enterprise solutions.\n\n🔍 The Secret Sauce:\nThe team discovered that in LLM processing, only a small subset of \"hot\" neurons are consistently active across different inputs. PowerInfer cleverly distributes the workload - keeping these frequently used neurons on the GPU while handling less active ones on the CPU. Think of it like keeping your most-used tools within arm's reach while storing others in the toolbox.\n\n📊 The Results Are Stunning:\n- Up to 11.69x faster than current solutions\n- Runs massive models like OPT-175B on consumer hardware\n- Achieves 82% of the performance of a $20,000 NVIDIA A100 GPU using just a $2,000 RTX 4090\n- Maintains full model accuracy\n\n💡 Real-World Impact:\nThis breakthrough could democratize AI by enabling:\n- Local AI processing for enhanced privacy\n- Affordable AI development for smaller companies\n- Personal AI applications without cloud dependencies\n- Reduced environmental impact through more efficient computing\n\nWhat excites me most is how this could transform AI accessibility for developers, researchers, and businesses who previously couldn't afford enterprise-grade hardware.\n\nWhat would you do with the power of advanced AI running locally on your PC?\n\nThoughts? 💭"
+}

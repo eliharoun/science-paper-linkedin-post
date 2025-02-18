@@ -14,18 +14,52 @@ class Paper:
     arxiv_id: str
     primary_category: str
     categories: List[str]
+    format: str = "standard"
     full_text: Optional[str] = None
     sections: Optional[List[Dict]] = None
     figures: Optional[List[Dict]] = None
     tables: Optional[List[Dict]] = None
     equations: Optional[List[Dict]] = None
+    key_findings: Optional[str] = None
+    technical_innovation: Optional[str] = None
+    practical_applications: Optional[str] = None
+    impact_analysis: Optional[str] = None
+    pdf_file: Optional[str] = None
+
+    def to_dict(self) -> Dict:
+        """Convert the Paper object to a dictionary"""
+        return {
+            "title": self.title,
+            "authors": self.authors,
+            "published": self.published,
+            "url": self.url,
+            "abstract": self.abstract,
+            "arxiv_id": self.arxiv_id,
+            "primary_category": self.primary_category,
+            "categories": self.categories,
+            "format": self.format,
+            # "full_text": self.full_text,
+            # "sections": self.sections,
+            # "figures": self.figures,
+            # "tables": self.tables,
+            # "equations": self.equations,
+            "key_findings": self.key_findings,
+            "technical_innovation": self.technical_innovation,
+            "practical_applications": self.practical_applications,
+            "impact_analysis": self.impact_analysis,
+            "pdf_file": self.pdf_file,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> "Paper":
+        """Create a Paper object from a dictionary"""
+        return cls(**data)
 
     def update(self, content: dict):
-        self.full_text = content.get("full_text", self.full_text)
-        self.sections = content.get("sections", self.sections)
-        self.figures = content.get("figures", self.figures)
-        self.tables = content.get("tables", self.tables)
-        self.equations = content.get("equations", self.equations)
+        """Update paper details with additional content"""
+        for key, value in content.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
 
 
 class PaperFormat:

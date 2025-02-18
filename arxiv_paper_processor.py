@@ -72,7 +72,11 @@ class ArxivPaperProcessor:
                 pdf_path = cache_path
 
             # Process PDF using PyMuPDF
-            doc = pymupdf.open(pdf_path)
+            try:
+                doc = pymupdf.open(pdf_path)
+            except Exception as e:
+                logger.error(f"Error opening PDF {pdf_path}: {str(e)}")
+                return None
 
             # Extract text and maintain structure
             content = {
@@ -81,6 +85,7 @@ class ArxivPaperProcessor:
                 "figures": [],
                 "tables": [],
                 "equations": [],
+                "pdf_file": pdf_path,
             }
 
             for page_num in range(len(doc)):
@@ -150,8 +155,8 @@ class ArxivPaperProcessor:
             return None
 
     def fetch_recent_cs_papers(
-        self, category: str = "cs.LG", max_results: int = 50
-    ) -> Queue:
+        self, category: str = "cs.LG", max_results: int = 10
+    ) -> Queue[Paper]:
         """Fetch recent CS papers from arXiv"""
         search = arxiv.Search(
             query=f"cat:{category}",
@@ -451,9 +456,9 @@ class ArxivPaperProcessor:
     def process_papers(
         self,
         category: str = "cs.LG",
-        max_results: int = 50,
+        max_results: int = 10,
         output_file: str = "processed_papers.json",
-    ):
+    ) -> List[Paper]:
         """
         Main function to process papers
 
@@ -461,7 +466,6 @@ class ArxivPaperProcessor:
             output_file: Path to save the processed papers
         """
         try:
-            # Fetch papers
             logger.info("Fetching recent CS papers...")
             papers = self.fetch_recent_cs_papers(category, max_results)
 
@@ -470,43 +474,39 @@ class ArxivPaperProcessor:
             while not papers.empty():
                 try:
                     paper = papers.get()
-                    logger.info(f"Processing paper: {paper.title}")
+                    logger.info(f"Processing paper: {paper.arxiv_id}")
 
-                    processed_paper = {
-                        "title": paper.title,
-                        "authors": paper.authors,
-                        "published": paper.published,
-                        "url": paper.url,
-                        "primary_category": paper.primary_category,
-                        "categories": paper.categories,
-                        "key_findings": self._extract_key_findings(paper),
-                        "technical_innovation": self._extract_technical_innovation(
-                            paper
-                        ),
-                        "practical_applications": self._extract_practical_applications(
-                            paper
-                        ),
-                        "impact": self._extract_impact(paper),
-                    }
-                    processed_papers.append(processed_paper)
-
+                    paper.key_findings = self._extract_key_findings(paper)
+                    paper.technical_innovation = self._extract_technical_innovation(
+                        paper
+                    )
+                    paper.practical_applications = self._extract_practical_applications(
+                        paper
+                    )
+                    paper.impact_analysis = self._extract_impact(paper)
+                    processed_papers.append(paper)
                 except Exception as e:
                     logger.error(f"Error processing individual paper: {str(e)}")
                     continue
 
             # Save results
+            serialized_papers = [paper.to_dict() for paper in processed_papers]
             with open(output_file, "w", encoding="utf-8") as f:
-                json.dump(processed_papers, f, indent=2, ensure_ascii=False)
+                json.dump(serialized_papers, f, indent=2, ensure_ascii=False)
 
             logger.info(
                 f"Processed {len(processed_papers)} papers successfully and saved to {output_file}"
             )
 
+            return processed_papers
+
         except Exception as e:
-            logger.error(f"Error in main processing loop: {str(e)}")
+            logger.error(f"Error in fetching and processing papers: {str(e)}")
             raise
 
-    def process_paper(self, paper_url: str, output_file: str = "processed_papers.json"):
+    def process_paper(
+        self, paper_url: str, output_file: str = "processed_papers.json"
+    ) -> Paper:
         """
         Main function to process paper by url
 
@@ -514,35 +514,22 @@ class ArxivPaperProcessor:
             paper_url: Url to arxiv paper
             output_file: Path to save the processed papers
         """
-        processed_paper = {}
         try:
-            # Fetch paper
             logger.info(f"Fetching paper: {paper_url}")
             paper = self.fetch_paper_by_url(paper_url=paper_url)
 
-            # Process paper
-            logger.info(f"Processing paper: {paper.title}")
-
-            processed_paper = {
-                "title": paper.title,
-                "authors": paper.authors,
-                "published": paper.published,
-                "url": paper.url,
-                "primary_category": paper.primary_category,
-                "categories": paper.categories,
-                "key_findings": self._extract_key_findings(paper),
-                "technical_innovation": self._extract_technical_innovation(paper),
-                "practical_applications": self._extract_practical_applications(paper),
-                "impact": self._extract_impact(paper),
-            }
-
-            logger.info(f"Processed paper successfully.")
+            logger.info(f"Processing paper: {paper.arxiv_id}")
+            paper.key_findings = self._extract_key_findings(paper)
+            paper.technical_innovation = self._extract_technical_innovation(paper)
+            paper.practical_applications = self._extract_practical_applications(paper)
+            paper.impact_analysis = self._extract_impact(paper)
         except Exception as e:
             logger.error(f"Error processing paper: {str(e)}")
+            raise
 
-        # Save result
-        print(f"processed_paper: {processed_paper}")
         with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(processed_paper, f, indent=2, ensure_ascii=False)
+            json.dump(paper.to_dict(), f, indent=2, ensure_ascii=False)
 
         logger.info(f"Processed paper and saved to {output_file}")
+
+        return paper

@@ -1,107 +1,24 @@
-[
-  {
-    "title": "Theoretical Benefit and Limitation of Diffusion Language Model",
-    "authors": [
-      "Guhao Feng",
-      "Yihan Geng",
-      "Jian Guan",
-      "Wei Wu",
-      "Liwei Wang",
-      "Di He"
-    ],
-    "published": "2025-02-13",
-    "url": "http://arxiv.org/pdf/2502.09622v1",
-    "primary_category": "cs.LG",
-    "categories": [
-      "cs.LG",
-      "cs.AI",
-      "cs.CL",
-      "stat.ML"
-    ],
-    "key_findings": "4.1.\nGiven that small models typically exhibit poor reasoning performance, we used a fine-tuned diffusion language model with 1.1B non-embedding parameters pro- posed by  Nie et al.",
-    "technical_innovation": "One would naturally expect this method to be an efficient\nreplacement for autoregressive models since multiple tokens can be sampled in\nparallel during each diffusion step.\nIn this paper, we present a rigorous theoretical\nanalysis of a widely used type of diffusion language model, the Masked\nDiffusion Model (MDM), and find that its effectiveness heavily depends on the\ntarget evaluation metric.",
-    "practical_applications": "Experimental results further re- inforce our theoretical results across formal and natural language tasks, offering practical guidance for deploying MDMs.\nWhile MDMs demonstrate efficiency advantages in applications prioritizing fluency, they may fall short in reasoning-intensive tasks requiring high accuracy compared to auto-regressive models.",
-    "impact": "Experimental results further re- inforce our theoretical results across formal and natural language tasks, offering practical guidance for deploying MDMs.\nWhile MDMs demonstrate efficiency advantages in applications prioritizing fluency, they may fall short in reasoning-intensive tasks requiring high accuracy compared to auto-regressive models."
-  },
-  {
-    "title": "Can this Model Also Recognize Dogs? Zero-Shot Model Search from Weights",
-    "authors": [
-      "Jonathan Kahana",
-      "Or Nathan",
-      "Eliahu Horwitz",
-      "Yedid Hoshen"
-    ],
-    "published": "2025-02-13",
-    "url": "http://arxiv.org/pdf/2502.09619v1",
-    "primary_category": "cs.LG",
-    "categories": [
-      "cs.LG",
-      "cs.CV"
-    ],
-    "key_findings": "5.1.\nHowever, we be- lieve this number can be reduced substantially.\nii) choosing the most confident probes of the query logit is crucial, no other approach achieved comparable accuracy.",
-    "technical_innovation": "ProbeLog: Logit-Level Descriptors Our objective is to accurately and efficiently find relevant models in a large repository that can recognize a target con- cept, e.g., “Dog”.\nTo mitigate this phenomenon, we propose focusing only on probes for which the query logit has high confidence about.",
-    "practical_applications": "This can be in an adaptive way i.e., sampling the first few prompts can inform the choice for the next probes.\nWe evaluate our approach on real-world models, and show it generalizes well to In-the-Wild models collected from HuggingFace.",
-    "impact": "Specifically, core- set methods, which aim to reduce the number of training data, could potentially reduce this number.\nWe ablated our design choices and showed they are crucial for effective model search."
-  },
-  {
-    "title": "Variational Rectified Flow Matching",
-    "authors": [
-      "Pengsheng Guo",
-      "Alexander G. Schwing"
-    ],
-    "published": "2025-02-13",
-    "url": "http://arxiv.org/pdf/2502.09616v1",
-    "primary_category": "cs.LG",
-    "categories": [
-      "cs.LG",
-      "cs.CV"
-    ],
-    "key_findings": "4.1.\nThe ground- truth flow in Figure  3 (a) shows that the standard deviation increases with time, peaking at ( x  = 0 .\nFig- ure  3 (b) shows that the rectified flow baseline, which uses an MSE loss, fails to model the velocity distribution faithfully, collapsing to a Dirac-delta distribution as expected.",
-    "technical_innovation": "We study Variational Rectified Flow Matching, a framework that enhances\nclassic rectified flow matching by modeling multi-modal velocity vector-fields.",
-    "practical_applications": "We study Variational Rectified Flow Matching, a framework which enables to model the multi-modal velocity vector fields induced by the ground-truth linear interpolation be- tween source and target distribution samples.",
-    "impact": "Encouraging results can be obtained on low-dimensional synthetic and high-dimensional image data."
-  },
-  {
-    "title": "DexTrack: Towards Generalizable Neural Tracking Control for Dexterous Manipulation from Human References",
-    "authors": [
-      "Xueyi Liu",
-      "Jianibieke Adalibieke",
-      "Qianwei Han",
-      "Yuzhe Qin",
-      "Li Yi"
-    ],
-    "published": "2025-02-13",
-    "url": "http://arxiv.org/pdf/2502.09614v1",
-    "primary_category": "cs.RO",
-    "categories": [
-      "cs.RO",
-      "cs.AI",
-      "cs.CV",
-      "cs.LG"
-    ],
-    "key_findings": "No explicit findings extracted",
-    "technical_innovation": "We address the challenge of developing a generalizable neural tracking\ncontroller for dexterous manipulation from human references.\nDeveloping such a\ncontroller is complicated by the intricate contact dynamics of dexterous\nmanipulation and the need for adaptivity, generalizability, and robustness.",
-    "practical_applications": "No explicit applications extracted",
-    "impact": "No explicit impact statements extracted"
-  },
-  {
-    "title": "Designing a Conditional Prior Distribution for Flow-Based Generative Models",
-    "authors": [
-      "Noam Issachar",
-      "Mohammad Salama",
-      "Raanan Fattal",
-      "Sagie Benaim"
-    ],
-    "published": "2025-02-13",
-    "url": "http://arxiv.org/pdf/2502.09611v1",
-    "primary_category": "cs.LG",
-    "categories": [
-      "cs.LG",
-      "cs.CV"
-    ],
-    "key_findings": "5.1.\nThe maximum mean discrepancy (MMD) computed on this data is 0.084 for CondOT, while we achieve an improved MMD of 0.072.\n5.2.",
-    "technical_innovation": ",  2021 ;  Hinton & Salakhutdinov ,  2006 ) has shown that applying a GMM in a VAE space can be highly effective for clustering, sug- gesting that it can act as a suitable prior distribution.\n,  2020a )) based models, our approach allows for faster training and sampling, as well as for a significantly improved generated image quality and diversity, evaluated using FID and KID, and alignment to the input text, evaluated using CLIP score.",
-    "practical_applications": "No explicit applications extracted",
-    "impact": "No explicit impact statements extracted"
-  }
-]
+{
+  "title": "PowerInfer: Fast Large Language Model Serving with a Consumer-grade GPU",
+  "authors": [
+    "Yixin Song",
+    "Zeyu Mi",
+    "Haotong Xie",
+    "Haibo Chen"
+  ],
+  "published": "2023-12-16",
+  "url": "http://arxiv.org/pdf/2312.12456v2",
+  "abstract": "This paper introduces PowerInfer, a high-speed Large Language Model (LLM)\ninference engine on a personal computer (PC) equipped with a single\nconsumer-grade GPU. The key principle underlying the design of PowerInfer is\nexploiting the high locality inherent in LLM inference, characterized by a\npower-law distribution in neuron activation. This distribution indicates that a\nsmall subset of neurons, termed hot neurons, are consistently activated across\ninputs, while the majority, cold neurons, vary based on specific inputs.\nPowerInfer exploits such an insight to design a GPU-CPU hybrid inference\nengine: hot-activated neurons are preloaded onto the GPU for fast access, while\ncold-activated neurons are computed on the CPU, thus significantly reducing GPU\nmemory demands and CPU-GPU data transfers. PowerInfer further integrates\nadaptive predictors and neuron-aware sparse operators, optimizing the\nefficiency of neuron activation and computational sparsity. The evaluation\nshows that PowerInfer significantly outperforms llama.cpp by up to 11.69x while\nretaining model accuracy across various LLMs (including OPT-175B) on a single\nNVIDIA RTX 4090 GPU. For the OPT-30B model, PowerInfer achieves performance\ncomparable to that of a high-end server-grade A100 GPU, reaching 82% of its\ntoken generation rate on a single consumer-grade RTX 4090 GPU.",
+  "arxiv_id": "2312.12456v2",
+  "primary_category": "cs.LG",
+  "categories": [
+    "cs.LG",
+    "cs.OS"
+  ],
+  "format": "standard",
+  "key_findings": "8.1\nAll experiments were conducted on two distinct PC configurations, representing both high-end and low-end hardware scenarios: •  PC-High : Intel i9-13900K processor (eight 5.4GHz cores), 192GB host memory (bandwidth of 67.2 GB/s), an NVIDIA RTX 4090 GPU (24GB), and PCIe 4.0 inter- face (64GB/s bandwidth).\n•  PC-Low : Intel i7-12700K processor (eight 4.9GHz cores), 64GB host memory (bandwidth 38.4 GB/s), an NVIDIA RTX 2080Ti GPU (11GB), and PCIe 3.0 inter- face (32GB/s bandwidth).",
+  "technical_innovation": "This paper introduces PowerInfer, a high-speed Large Language Model (LLM)\ninference engine on a personal computer (PC) equipped with a single\nconsumer-grade GPU.\nThe evaluation\nshows that PowerInfer significantly outperforms llama.cpp by up to 11.69x while\nretaining model accuracy across various LLMs (including OPT-175B) on a single\nNVIDIA RTX 4090 GPU.",
+  "practical_applications": "It utilizes adaptive predictors and neuron-aware operators for neuron activation and computational sparsity.",
+  "impact_analysis": "No explicit impact statements extracted",
+  "pdf_file": "paper_cache/2312.12456v2.pdf"
+}
