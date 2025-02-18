@@ -58,6 +58,12 @@ def parse_arguments():
         help="Output file path for the LinkedIn post content",
     )
 
+    parser.add_argument(
+        "--agi-client",
+        default="local",
+        help="AGI client to use for generating LinkedIn post content. Choose from 'local', 'openai' or 'anthropic'. Default is 'local'",
+    )
+
     return parser.parse_args()
 
 
@@ -74,10 +80,10 @@ def main():
     processor = ArxivPaperProcessor(args.cache_dir)
 
     # Create an instance of the AGI client
-    agi_client = AgiClientFactory.create_client("anthropic")
+    agi_client = AgiClientFactory.create_client(args.agi_client)
 
     # Create an instance of the LinkedInPostGenerator
-    linkedin_post_generator = LinkedInPostGenerator(agi_client, model_name="claude-3-5-sonnet-20241022")
+    linkedin_post_generator = LinkedInPostGenerator(agi_client)
 
     # Process a single paper if paper URL is provided
     if args.paper_url:

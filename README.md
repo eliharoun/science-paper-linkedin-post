@@ -35,14 +35,46 @@ This project automates the process of generating LinkedIn posts from scientific 
 ### Process Single paper
 ```bash
 # Process a single paper by URL
-poetry run python main.py --paper-url "https://arxiv.org/abs/2312.12456"
+poetry run python main.py --paper-url "https://arxiv.org/abs/2312.12456" --agi-client "local"
 ```
 
 ### Process multiple papers
 ```bash
 # Process multiple papers from a specific category
-poetry run python main.py --category "cs.*" --max-papers 5
+poetry run python main.py --category "cs.*" --max-papers 5 --agi-client "anthropic"
 
 # Process multiple papers from a specific category and a sub-category
-poetry run python main.py --category "cs.AI" --max-papers 3
+poetry run python main.py --category "cs.AI" --max-papers 3 --agi-client "openai"
 ```
+
+### Local Model Usage with Ollama
+
+To use locally deployed models with Ollama:
+
+1. Install Ollama from [ollama.com/download](https://ollama.com/download)
+2. Start the Ollama service
+3. Pull your desired model:
+    ```bash
+    ollama pull <model-name>
+    ```
+    Example:
+    ```bash
+    ollama pull llama2
+    ```
+
+4. Configure your chat model with Ollama settings:
+    ```python
+    chat_model = ChatModelFactory.create(
+         provider="ollama",
+         model_name="llama3.2",
+         api_base="http://localhost:11434"
+    )
+    ```
+
+Available models can be found at [Ollama.com](https://ollama.com/).
+
+#### Note
+- Ensure Ollama service is running before creating the chat model
+- Default port for Ollama is 11434
+- Model must be pulled before it can be used
+- Check Ollama documentation for specific model capabilities and requirements
