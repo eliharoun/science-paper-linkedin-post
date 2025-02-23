@@ -33,7 +33,7 @@ This project automates the process of generating LinkedIn posts from scientific 
 
 ## Prerequisites
 - Python 3.9+
-- Required packages: `anthropic`, `requests`, `arxiv`, `nltk`, `openai`, `pymupdf`, `ollama`
+- Required packages: `anthropic`, `requests`, `arxiv`, `nltk`, `openai`, `pymupdf`, `ollama`, `tenacity`
 
 ## Get Everything Ready
 

@@ -1,5 +1,6 @@
 import argparse
 import logging
+import time
 
 from utils.arxiv_paper_processor import ArxivPaperProcessor
 from utils.agi_client_factory import AgiClientFactory
@@ -114,6 +115,7 @@ def main():
                     "arxiv_id": paper.arxiv_id,
                     "published": paper.published,
                     "authors": paper.authors,
+                    "url": paper.url,
                     "linkedin_post": post_content,
                 }
                 with open(args.output, "w", encoding="utf-8") as f:
@@ -133,18 +135,17 @@ def main():
         )
 
         if papers:
-            posts_content = []
             output_list = []
             for paper in papers:
                 # Generate a LinkedIn post for each processed paper
                 post_content = linkedin_post_generator.generate_linkedin_post(paper)
-                posts_content.append(post_content)
 
                 output = {
                     "title": paper.title,
                     "arxiv_id": paper.arxiv_id,
                     "published": paper.published,
                     "authors": paper.authors,
+                    "url": paper.url,
                     "linkedin_post": post_content,
                 }
 

@@ -6,9 +6,11 @@ import logging
 import base64
 from ollama import ChatResponse, GenerateResponse
 from ollama import Client as OllamaClient
-from common.claude_models import model_names as claude_models
-from common.openai_models import model_names as openai_models
-from common.ollama_models import model_names as ollama_models
+from .models.claude_models import model_names as claude_models
+from .models.openai_models import model_names as openai_models
+from .models.ollama_models import model_names as ollama_models
+import time
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -43,8 +45,13 @@ class AnthropicClient(AgiClient):
         self.model_name = model_name
 
     def get_response(self, model_input: dict, prompt_caching: bool = True) -> str:
-        try:
-            message = self.client.messages.create(
+        @retry(
+            stop=stop_after_attempt(5),
+            wait=wait_exponential(multiplier=2, min=10, max=60),
+            reraise=True,
+        )
+        def _make_api_call(self, model_input, prompt_caching):
+            return self.client.messages.create(
                 model=self.model_name,
                 max_tokens=model_input.get("max_tokens", 1000),
                 temperature=model_input.get("temperature", 0),
@@ -59,6 +66,9 @@ class AnthropicClient(AgiClient):
                     else None
                 ),
             )
+
+        try:
+            message = _make_api_call(self, model_input, prompt_caching)
             response = (
                 message.content[0].text
                 if len(message.content) > 0
@@ -115,16 +125,24 @@ class OpenAiClient(AgiClient):
         self.model_name = model_name
 
     def get_response(self, model_input: dict) -> str:
-        try:
-            completion = self.client.chat.completions.create(
+        @retry(
+            stop=stop_after_attempt(5),
+            wait=wait_exponential(multiplier=2, min=10, max=60),
+            reraise=True,
+        )
+        def _make_api_call(self, model_input):
+            return self.client.chat.completions.create(
                 model=self.model_name,
                 max_tokens=model_input.get("max_tokens", 1000),
                 temperature=model_input.get("temperature", 0),
                 system=model_input.get("system"),
                 messages=self._get_prompt_content(model_input.get("prompt")),
             )
+
+        try:
+            completion = _make_api_call(self, model_input)
             response = (
-                completion.choices[0].message
+                completion.choices[0].message.content
                 if len(completion.choices) > 0
                 else "I have no answer."
             )
