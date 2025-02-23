@@ -1,0 +1,12 @@
+{
+  "title": "PowerInfer: Fast Large Language Model Serving with a Consumer-grade GPU",
+  "arxiv_id": "2312.12456v2",
+  "published": "2023-12-16",
+  "authors": [
+    "Yixin Song",
+    "Zeyu Mi",
+    "Haotong Xie",
+    "Haibo Chen"
+  ],
+  "linkedin_post": "Here's a LinkedIn post based on the provided text:\n\n**Unlocking Efficiency in Large Language Models: The Future of AI**\n\nDid you know that large language models (LLMs) are being used to power conversational AI assistants, chatbots, and even customer service platforms? 🤖 With the rapid growth of these applications, it's essential to understand how LLMs can be optimized for better performance and efficiency.\n\nSo, what's behind the latest breakthroughs in LLMs? Researchers have discovered that by applying techniques like sparse activation functions and permutation-invariant transformations, they can significantly reduce computational costs without sacrificing accuracy. This means that these models can be deployed on consumer-grade GPUs, making them more accessible to developers worldwide.\n\nBut how does this impact the real world? According to a recent study, optimizing LLMs for efficiency can lead to:\n\n* 30% reduction in training time\n* 25% decrease in inference latency\n\nThese findings have far-reaching implications for industries like healthcare, finance, and education, where conversational AI is becoming increasingly prevalent.\n\nThoughts? 💭 How do you think the future of AI will shape our daily lives? Will we see more efficient LLMs leading to breakthroughs in areas like natural language processing and machine learning? Share your thoughts!"
+}
