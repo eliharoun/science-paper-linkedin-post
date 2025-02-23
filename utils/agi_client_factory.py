@@ -4,7 +4,7 @@ from openai import OpenAI
 import os
 import logging
 import base64
-from ollama import ChatResponse, GenerateResponse
+from ollama import GenerateResponse
 from ollama import Client as OllamaClient
 from .models.claude_models import model_names as claude_models
 from .models.openai_models import model_names as openai_models

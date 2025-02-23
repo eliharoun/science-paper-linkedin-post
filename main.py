@@ -1,6 +1,5 @@
 import argparse
 import logging
-import time
 
 from utils.arxiv_paper_processor import ArxivPaperProcessor
 from utils.agi_client_factory import AgiClientFactory
@@ -119,7 +118,7 @@ def main():
                     "linkedin_post": post_content,
                 }
                 with open(args.output, "w", encoding="utf-8") as f:
-                    json.dump(output, f, ensure_ascii=False, indent=2)
+                    json.dump([output], f, ensure_ascii=False, indent=2)
 
                 logging.info(f"Output saved to {args.output}")
             else:
