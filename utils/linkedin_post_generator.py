@@ -85,21 +85,26 @@ class LinkedInPostGenerator:
     Impact Analysis:
     {paper.impact_analysis}
 
+    Paper URL:
+    {paper.url}
+
     Full Paper: 
     {paper.full_text if self.local_mode else paper.url}
 
-    Create an engaging LinkedIn post that would interest both technical and non-technical professionals. The post should be between 1,300 and 2,000 characters.
+    Create an engaging LinkedIn post that would interest technical professionals (Software engineers, Machine Learning Engineers, Scientists, Technical Product Managers and Project Managers). The post should be between 1,300 and 1,800 characters.
 
     Guidelines for the post:
     1. Start with an attention-grabbing hook related to real-world impact
-    2. Break down complex technical concepts into simple, relatable explanations.
-    3. Only use information from the paper. Don't invent new information.
+    2. Break down complex technical concepts into simple explanations, but without comparisons or illustrative explanations.
+    3. You must only use information from the paper being analyzed. Do not invent new information.
     4. Highlight the most innovative aspects and practical applications
     5. Include relevant statistics or findings if available
-    6. Use 2-4 relevant emojis naturally
+    6. Use 2-3 relevant emojis naturally
     7. Structure with short, scannable paragraphs
     8. End with an engaging question
     9. Add "Thoughts? 💭" at the end
+    10. Add a source to the paper link at the end of the post. In the format: "🔗 Source: [Paper Title] [Paper URL]"
+    11. Include 4 most relevant hashtags then end them with the hashtag #ReadMorePapers at the end
 
     Focus on making the content both engaging and valuable for a professional audience.
     """
