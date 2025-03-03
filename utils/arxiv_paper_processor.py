@@ -9,9 +9,9 @@ from utils.paper import PaperFormat, Paper
 from utils.text_processor import TextProcessor
 from typing import Dict, List, Optional
 import logging
-from queue import Queue
 import os
 from utils.paper import Paper
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Set up logging
 logging.basicConfig(
@@ -38,22 +38,207 @@ class ArxivPaperProcessor:
         # Create cache directory if it doesn't exist
         os.makedirs(cache_dir, exist_ok=True)
 
-    def get_cached_pdf_path(self, paper_id: str) -> str:
-        """Get the path for a cached PDF"""
-        return os.path.join(self.cache_dir, f"{paper_id}.pdf")
-
-    def extract_pdf_content(self, pdf_url: str, paper_id: str) -> Optional[Dict]:
+    def fetch_process_recent_papers(
+        self, category: str = "cs.LG", max_results: int = 10, process_pdf=False
+    ) -> List[Paper]:
         """
-        Extract PDF content
+        Main function to fetch and process recent papers
 
         Args:
-            pdf_url: URL of the PDF to download
-            paper_id: arXiv ID of the paper
+            category: ArXiv category to search
+            max_results: Maximum number of papers to fetch
+        """
+        try:
+            logger.info("Fetching recent papers...")
+            arxiv_results = self.fetch_recent_from_arxiv(category, max_results)
+
+            # Only process PDF if explicitly requested
+            if not process_pdf:
+                # Just fetch metadata
+                papers: list[Paper] = [
+                    self.create_paper(result) for result in arxiv_results
+                ]
+            else:
+                papers: list[Paper] = self.process_arxiv_results(arxiv_results)
+
+            return papers
+        except Exception as e:
+            logger.error(f"Error in fetching and processing papers: {str(e)}")
+            raise
+
+    def fetch_process_single_paper_url(
+        self, paper_url: str, process_pdf=False
+    ) -> Paper:
+        """
+        Main function to process paper by url
+
+        Args:
+            paper_url: Url to arxiv paper
+        """
+        logger.info(f"Fetching paper: {paper_url}")
+        try:
+            # Only process PDF if explicitly requested
+            if not process_pdf:
+                # Just fetch metadata
+                result = self.fetch_from_arxiv_by_url(paper_url)[0]
+                paper = self.create_paper(result)
+            else:
+                arxiv_results = self.fetch_from_arxiv_by_url(paper_url)
+                paper = self.process_arxiv_results(arxiv_results)[0]
+        except Exception as e:
+            logger.error(f"Error in fetching and processing paper: {str(e)}")
+            raise
+
+        return paper
+
+    def fetch_process_single_paper_id(self, paper_id: str, process_pdf=False) -> Paper:
+        """
+        Main function to process paper by id
+
+        Args:
+            paper_id: Id of arxiv paper
+        """
+        try:
+            # Only process PDF if explicitly requested
+            if not process_pdf:
+                # Just fetch metadata
+                arxiv_results = self.fetch_from_arxiv_by_id(paper_id)[0]
+                paper = self.create_paper(arxiv_results)
+            else:
+                arxiv_results = self.fetch_from_arxiv_by_id(paper_id)
+                paper = self.process_arxiv_results(arxiv_results)[0]
+        except Exception as e:
+            logger.error(f"Error in fetching and processing paper: {str(e)}")
+            raise
+
+        return paper
+
+    def fetch_recent_from_arxiv(
+        self, category: str = "cs.LG", max_results: int = 10
+    ) -> list[arxiv.Result]:
+        """Fetch recent papers from arXiv
+
+        Args:
+            category: ArXiv category to search
+            max_results: Maximum number of papers to fetch
+        """
+        try:
+            search = arxiv.Search(
+                query=f"cat:{category}",
+                max_results=max_results,
+                sort_by=arxiv.SortCriterion.SubmittedDate,
+            )
+            return list(self.arxiv_client.results(search))
+        except Exception as e:
+            logger.error(f"Error fetching papers from arXiv: {str(e)}")
+            raise
+
+    def fetch_from_arxiv_by_id(self, paper_id: str) -> list[arxiv.Result]:
+        """Fetch paper from arXiv by paper id"""
+        try:
+            search = arxiv.Search(id_list=[paper_id])
+            return list(self.arxiv_client.results(search))
+        except Exception as e:
+            logger.error(f"Error fetching papers from arXiv: {str(e)}")
+            raise
+
+    def fetch_from_arxiv_by_url(self, paper_url: str) -> list[arxiv.Result]:
+        """Fetch paper from arXiv for a given url"""
+        paper_id = self.extract_arxiv_id_from_url(paper_url)
+        return self.fetch_from_arxiv_by_id(paper_id)
+
+    def process_arxiv_results(self, arxiv_results: list[arxiv.Result]) -> list[Paper]:
+        """
+        Process arXiv results by loading cached papers or processing new ones.
+
+        Args:
+            arxiv_results: List of arXiv search results
 
         Returns:
-            Dictionary containing extracted text and metadata
+            List of processed Paper objects
         """
-        cache_path = self.get_cached_pdf_path(paper_id)
+        processed_papers = self._load_cached_papers(arxiv_results)
+        new_papers = self._get_unprocessed_papers(arxiv_results)
+
+        if new_papers:
+            new_papers = self._download_pdfs_parallel(new_papers)
+            processed_new_papers = self._process_new_papers(new_papers)
+            processed_papers.extend(processed_new_papers)
+
+        return processed_papers
+
+    def extract_arxiv_id_from_url(self, url: str) -> str:
+        return url.split("/")[-1]
+
+    def create_paper(self, result: arxiv.Result) -> Paper:
+        """Create a Paper object from an arXiv result"""
+        return Paper(
+            title=result.title,
+            authors=[author.name for author in result.authors],
+            published=result.published.strftime("%Y-%m-%d"),
+            url=result.pdf_url,
+            abstract=result.summary,
+            arxiv_id=self.extract_arxiv_id_from_url(result.entry_id),
+            primary_category=result.primary_category,
+            categories=result.categories,
+        )
+
+    def _load_cached_papers(self, arxiv_results: list[arxiv.Result]) -> list[Paper]:
+        """Load already processed papers from cache."""
+        cached_papers = []
+        for result in arxiv_results:
+            paper_id = self.extract_arxiv_id_from_url(result.entry_id)
+            if self._processed_paper_exists(paper_id):
+                logger.info(f"Loading cached processed paper for {paper_id}")
+                cached_papers.append(self._get_processed_paper(paper_id))
+        return cached_papers
+
+    def _get_unprocessed_papers(self, arxiv_results: list[arxiv.Result]) -> list[Paper]:
+        """Create Paper objects for results not in cache."""
+        return [
+            self.create_paper(result)
+            for result in arxiv_results
+            if not self._processed_paper_exists(
+                self.extract_arxiv_id_from_url(result.entry_id)
+            )
+        ]
+
+    def _download_pdfs_parallel(self, papers: list[Paper]) -> list[Paper]:
+        """Download PDFs in parallel for all papers."""
+        max_workers = min(len(papers), 16)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_paper = {
+                executor.submit(self._download_pdf, paper.url, paper.arxiv_id): paper
+                for paper in papers
+            }
+
+            for future in as_completed(future_to_paper):
+                paper = future_to_paper[future]
+                paper.pdf_path = future.result()
+
+        return papers
+
+    def _process_new_papers(self, papers: list[Paper]) -> list[Paper]:
+        """Process and cache new papers."""
+        processed_papers = []
+        for paper in papers:
+            processed_paper = self._process_single_paper(paper)
+            if processed_paper:
+                self._save_processed_paper(processed_paper)
+                processed_papers.append(processed_paper)
+        return processed_papers
+
+    def _get_cached_pdf_path(self, paper_id: str) -> str:
+        """Get the path for a cached PDF"""
+        cached_pdf_dir = os.path.join(self.cache_dir, "pdf_files")
+        os.makedirs(cached_pdf_dir, exist_ok=True)
+        return os.path.join(cached_pdf_dir, f"{paper_id}.pdf")
+
+    def _download_pdf(self, pdf_url: str, paper_id: str) -> Optional[str]:
+        """
+        Download a PDF file
+        """
+        cache_path = self._get_cached_pdf_path(paper_id)
 
         try:
             # Check cache first
@@ -71,142 +256,174 @@ class ArxivPaperProcessor:
                     f.write(response.content)
                 pdf_path = cache_path
 
-            # Process PDF using PyMuPDF
-            try:
-                doc = pymupdf.open(pdf_path)
-            except Exception as e:
-                logger.error(f"Error opening PDF {pdf_path}: {str(e)}")
-                return None
-
-            # Extract text and maintain structure
-            content = {
-                "full_text": "",
-                "sections": [],
-                "figures": [],
-                "tables": [],
-                "equations": [],
-                "pdf_file": pdf_path,
-            }
-
-            for page_num in range(len(doc)):
-                page = doc[page_num]
-
-                # Extract text with formatting
-                blocks = page.get_text("dict")["blocks"]
-                for block in blocks:
-                    if "lines" in block:
-                        for line in block["lines"]:
-                            for span in line["spans"]:
-                                # Check for formatting
-                                is_bold = span["flags"] & 2**4 != 0
-                                is_italic = span["flags"] & 2**1 != 0
-                                font_size = span["size"]
-
-                                text = span["text"]
-                                # Check if the text is a title based on formatting and content
-                                if is_bold and TextProcessor.is_title(text):
-                                    # Add a new section with the title
-                                    content["sections"].append(
-                                        {
-                                            "title": text,
-                                            "content": "",
-                                            "level": (
-                                                1 if font_size > 12 else 2
-                                            ),  # Determine section level based on font size
-                                        }
-                                    )
-                                else:
-                                    # Append text to the last section's content if it exists
-                                    if content["sections"]:
-                                        content["sections"][-1]["content"] += text + " "
-                                    # Append text to the full text content
-                                    content["full_text"] += text + " "
-                # Extract images as metadata only
-                for img_index, img in enumerate(page.get_images()):
-                    content["figures"].append(
-                        {"page": page_num + 1, "index": img_index, "type": "image"}
-                    )
-
-                # Convert table data to serializable format
-                tables = page.find_tables()
-                for table in tables:
-                    serializable_table = {
-                        "page": page_num + 1,
-                        "rows": len(table.cells),
-                        "cols": len(table.cells[0]) if table.cells else 0,
-                        "type": "table",
-                    }
-                    content["tables"].append(serializable_table)
-
-            # Clean the extracted text
-            content["full_text"] = TextProcessor.clean_text(content["full_text"])
-
-            # Detect paper format and structure
-            paper_format = PaperFormat.detect_format(content["full_text"])
-            content["format"] = paper_format
-
-            # Close the document
-            doc.close()
-
-            return content
-
+            return pdf_path
         except Exception as e:
-            logger.error(f"Error extracting PDF content from {pdf_url}: {str(e)}")
+            logger.error(f"Error downloading PDF from {pdf_url}: {str(e)}")
             return None
 
-    def fetch_recent_cs_papers(
-        self, category: str = "cs.LG", max_results: int = 10
-    ) -> Queue[Paper]:
-        """Fetch recent CS papers from arXiv"""
-        search = arxiv.Search(
-            query=f"cat:{category}",
-            max_results=max_results,
-            sort_by=arxiv.SortCriterion.SubmittedDate,
-        )
+    def _extract_pdf_content(self, pdf_path: str) -> Optional[Dict]:
+        """
+        Extract PDF content
 
-        queue = Queue()
-        for result in self.arxiv_client.results(search):
-            processed_paper = self.process_single_paper(result)
-            if processed_paper:
-                queue.put(processed_paper)
+        Args:
+            pdf_url: URL of the PDF to download
+            paper_id: arXiv ID of the paper
 
-        return queue
-
-    def fetch_paper_by_url(self, paper_url: str) -> Paper:
-        """Fetch and process a single paper by its arXiv URL"""
-        search = arxiv.Search(id_list=[paper_url.split("/")[-1]])
-
+        Returns:
+            Dictionary containing extracted text and metadata
+        """
+        # Process PDF using PyMuPDF
         try:
-            result = next(self.arxiv_client.results(search))
-            return self.process_single_paper(result)
+            doc = pymupdf.open(pdf_path)
         except Exception as e:
-            logger.error(f"Error fetching paper by URL {paper_url}: {str(e)}")
+            logger.error(f"Error opening PDF {pdf_path}: {str(e)}")
             return None
 
-    def process_single_paper(self, result: arxiv.Result) -> Paper:
-        """Process a single paper"""
-        try:
-            paper = Paper(
-                title=result.title,
-                authors=[author.name for author in result.authors],
-                published=result.published.strftime("%Y-%m-%d"),
-                url=result.pdf_url,
-                abstract=result.summary,
-                arxiv_id=result.entry_id.split("/")[-1],
-                primary_category=result.primary_category,
-                categories=result.categories,
-            )
+        # Extract text and maintain structure
+        content = {
+            "full_text": "",
+            "sections": [],
+            "figures": [],
+            "tables": [],
+            "equations": [],
+            "pdf_path": pdf_path,
+        }
 
+        in_references = False
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+
+            # Extract text with formatting
+            blocks = page.get_text("dict")["blocks"]
+            for block in blocks:
+                if "lines" in block:
+                    for line in block["lines"]:
+                        for span in line["spans"]:
+                            # Check for formatting
+                            is_bold = span["flags"] & 2**4 != 0
+                            is_italic = span["flags"] & 2**1 != 0
+                            font_size = span["size"]
+
+                            text = span["text"]
+                            # Check if we're entering references section
+                            if (
+                                is_bold
+                                and TextProcessor.is_title(text)
+                                and text.lower().strip() == "references"
+                            ):
+                                in_references = True
+                                continue
+
+                            # Skip if we're in references section
+                            if in_references:
+                                continue
+
+                            # Check if the text is a title based on formatting and content
+                            if is_bold and TextProcessor.is_title(text):
+                                # Add a new section with the title
+                                content["sections"].append(
+                                    {
+                                        "title": text,
+                                        "content": "",
+                                        "level": (
+                                            1 if font_size > 12 else 2
+                                        ),  # Determine section level based on font size
+                                    }
+                                )
+                            else:
+                                # Append text to the last section's content if it exists
+                                if content["sections"]:
+                                    content["sections"][-1]["content"] += text + " "
+                                # Append text to the full text content
+                                content["full_text"] += text + " "
+            # Extract images as metadata only
+            for img_index, img in enumerate(page.get_images()):
+                content["figures"].append(
+                    {"page": page_num + 1, "index": img_index, "type": "image"}
+                )
+
+            # Convert table data to serializable format
+            tables = page.find_tables()
+            for table in tables:
+                serializable_table = {
+                    "page": page_num + 1,
+                    "rows": len(table.cells),
+                    "cols": len(table.cells[0]) if table.cells else 0,
+                    "type": "table",
+                }
+                content["tables"].append(serializable_table)
+
+        # Clean the extracted text
+        content["full_text"] = TextProcessor.clean_text(content["full_text"])
+
+        # Detect paper format and structure
+        paper_format = PaperFormat.detect_format(content["full_text"])
+        content["format"] = paper_format
+
+        # Close the document
+        doc.close()
+
+        return content
+
+    def _process_single_paper(self, paper: Paper) -> Paper:
+        """Extract content from a single paper and update the Paper object"""
+        try:
             # Extract PDF content
-            content = self.extract_pdf_content(result.pdf_url, paper.arxiv_id)
+            content = self._extract_pdf_content(paper.pdf_path)
             if content:
                 paper.update(content)
+
+            paper.key_findings = self._extract_key_findings(paper)
+            paper.technical_innovation = self._extract_technical_innovation(paper)
+            paper.practical_applications = self._extract_practical_applications(paper)
+            paper.impact_analysis = self._extract_impact(paper)
 
             return paper
 
         except Exception as e:
-            logger.error(f"Error processing paper {result.title}: {str(e)}")
+            logger.error(f"Error processing paper {paper.title}: {str(e)}")
             return None
+
+    def _create_get_cached_processed_paper_dir(self) -> str:
+        """Create and return the directory for cached processed papers"""
+        processed_papers_dir = os.path.join(self.cache_dir, "processed_papers")
+        os.makedirs(processed_papers_dir, exist_ok=True)
+        return processed_papers_dir
+
+    def _save_processed_paper(self, paper: Paper):
+        """Save processed paper content to JSON file"""
+        try:
+            # Create the processed papers directory if it doesn't exist
+            cached_processed_paper_path = os.path.join(
+                self._create_get_cached_processed_paper_dir(), f"{paper.arxiv_id}.json"
+            )
+
+            with open(cached_processed_paper_path, "w", encoding="utf-8") as f:
+                json.dump(paper.to_dict_full(), f, indent=2, ensure_ascii=False)
+
+            logger.debug(f"Processed paper saved to {cached_processed_paper_path}")
+        except IOError as e:
+            logger.error(f"Failed to save processed paper {paper.arxiv_id}: {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error saving paper {paper.arxiv_id}: {str(e)}")
+
+    def _processed_paper_exists(self, paper_id: str) -> bool:
+        """Check if a processed paper exists in the cache"""
+        cached_processed_paper_path = os.path.join(
+            self._create_get_cached_processed_paper_dir(), f"{paper_id}.json"
+        )
+        logger.debug(
+            f"Checking if processed paper exists for paper: {paper_id} at path : {cached_processed_paper_path}"
+        )
+        return os.path.exists(cached_processed_paper_path)
+
+    def _get_processed_paper(self, paper_id: str) -> Paper:
+        """Get a processed paper from the cache"""
+        cached_processed_paper_path = os.path.join(
+            self._create_get_cached_processed_paper_dir(), f"{paper_id}.json"
+        )
+        with open(cached_processed_paper_path, "r", encoding="utf-8") as f:
+            return Paper.from_dict(json.load(f))
 
     def _extract_key_findings(self, paper: Paper) -> str:
         """Extract key findings from the paper"""
@@ -452,84 +669,3 @@ class ArxivPaperProcessor:
             if impact_statements
             else "No explicit impact statements extracted"
         )
-
-    def process_papers(
-        self,
-        category: str = "cs.LG",
-        max_results: int = 10,
-        output_file: str = "processed_papers.json",
-    ) -> List[Paper]:
-        """
-        Main function to process papers
-
-        Args:
-            output_file: Path to save the processed papers
-        """
-        try:
-            logger.info("Fetching recent CS papers...")
-            papers = self.fetch_recent_cs_papers(category, max_results)
-
-            # Process each paper
-            processed_papers = []
-            while not papers.empty():
-                try:
-                    paper = papers.get()
-                    logger.info(f"Processing paper: {paper.arxiv_id}")
-
-                    paper.key_findings = self._extract_key_findings(paper)
-                    paper.technical_innovation = self._extract_technical_innovation(
-                        paper
-                    )
-                    paper.practical_applications = self._extract_practical_applications(
-                        paper
-                    )
-                    paper.impact_analysis = self._extract_impact(paper)
-                    processed_papers.append(paper)
-                except Exception as e:
-                    logger.error(f"Error processing individual paper: {str(e)}")
-                    continue
-
-            # Save results
-            serialized_papers = [paper.to_dict() for paper in processed_papers]
-            with open(output_file, "w", encoding="utf-8") as f:
-                json.dump(serialized_papers, f, indent=2, ensure_ascii=False)
-
-            logger.info(
-                f"Processed {len(processed_papers)} papers successfully and saved to {output_file}"
-            )
-
-            return processed_papers
-
-        except Exception as e:
-            logger.error(f"Error in fetching and processing papers: {str(e)}")
-            raise
-
-    def process_paper(
-        self, paper_url: str, output_file: str = "output/processed_papers.json"
-    ) -> Paper:
-        """
-        Main function to process paper by url
-
-        Args:
-            paper_url: Url to arxiv paper
-            output_file: Path to save the processed papers
-        """
-        try:
-            logger.info(f"Fetching paper: {paper_url}")
-            paper = self.fetch_paper_by_url(paper_url=paper_url)
-
-            logger.info(f"Processing paper: {paper.arxiv_id}")
-            paper.key_findings = self._extract_key_findings(paper)
-            paper.technical_innovation = self._extract_technical_innovation(paper)
-            paper.practical_applications = self._extract_practical_applications(paper)
-            paper.impact_analysis = self._extract_impact(paper)
-        except Exception as e:
-            logger.error(f"Error processing paper: {str(e)}")
-            raise
-
-        with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(paper.to_dict(), f, indent=2, ensure_ascii=False)
-
-        logger.info(f"Processed paper and saved to {output_file}")
-
-        return paper

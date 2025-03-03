@@ -6,7 +6,7 @@ authors = ["Elias Haroun <elias.haroun@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.11"
 anthropic = "^0.45.2"
 requests = "^2.32.3"
 arxiv = "^2.1.3"
@@ -16,6 +16,11 @@ fitz = "^0.0.1.dev2"
 pymupdf = "^1.25.3"
 ollama = "^0.4.7"
 tenacity = "^9.0.0"
+fastapi = "^0.115.10"
+uvicorn = "^0.34.0"
+cachetools = "^5.5.2"
+psutil = "^7.0.0"
+fastapi-cors = "^0.0.6"
 
 
 [build-system]

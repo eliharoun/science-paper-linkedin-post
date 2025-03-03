@@ -2,6 +2,7 @@
 # Source: https://ollama.com/search
 model_names = [
     "deepseek-r1",
+    "deepseek-r1:8b",
     "llama3.3",
     "phi4",
     "llama3.2",

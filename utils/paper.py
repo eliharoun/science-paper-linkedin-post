@@ -24,7 +24,7 @@ class Paper:
     technical_innovation: Optional[str] = None
     practical_applications: Optional[str] = None
     impact_analysis: Optional[str] = None
-    pdf_file: Optional[str] = None
+    pdf_path: Optional[str] = None
 
     def to_dict(self) -> Dict:
         """Convert the Paper object to a dictionary"""
@@ -38,16 +38,35 @@ class Paper:
             "primary_category": self.primary_category,
             "categories": self.categories,
             "format": self.format,
-            # "full_text": self.full_text,
-            # "sections": self.sections,
-            # "figures": self.figures,
-            # "tables": self.tables,
-            # "equations": self.equations,
             "key_findings": self.key_findings,
             "technical_innovation": self.technical_innovation,
             "practical_applications": self.practical_applications,
             "impact_analysis": self.impact_analysis,
-            "pdf_file": self.pdf_file,
+            "pdf_path": self.pdf_path,
+        }
+
+    def to_dict_full(self) -> Dict:
+        """Convert the complete Paper object to a dictionary"""
+        return {
+            "title": self.title,
+            "authors": self.authors,
+            "published": self.published,
+            "url": self.url,
+            "abstract": self.abstract,
+            "arxiv_id": self.arxiv_id,
+            "primary_category": self.primary_category,
+            "categories": self.categories,
+            "format": self.format,
+            "full_text": self.full_text,
+            "sections": self.sections,
+            "figures": self.figures,
+            "tables": self.tables,
+            "equations": self.equations,
+            "key_findings": self.key_findings,
+            "technical_innovation": self.technical_innovation,
+            "practical_applications": self.practical_applications,
+            "impact_analysis": self.impact_analysis,
+            "pdf_path": self.pdf_path,
         }
 
     @classmethod

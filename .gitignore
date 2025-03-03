@@ -56,3 +56,5 @@ yarn-error.log*
 
 # Download files
 paper_cache/
+
+__pycache__

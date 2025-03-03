@@ -1,161 +1,343 @@
-import argparse
-import logging
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware  # Add this import
 
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, HttpUrl
+from typing import List, Dict, Any
+import uvicorn
+from cachetools import LRUCache
 from utils.arxiv_paper_processor import ArxivPaperProcessor
 from utils.agi_client_factory import AgiClientFactory
 from utils.linkedin_post_generator import LinkedInPostGenerator
-import json
+from utils.arxiv_paper_summarizer import ArxivPaperSummarizer
+import asyncio
+import logging
+from utils.paper import Paper
+import time
+import psutil
 
-# Set up logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
+start_time = time.time()
 
-def parse_arguments():
-    """Parse command line arguments."""
-    # Create the argument parser
-    parser = argparse.ArgumentParser(description="Process arXiv papers")
+app = FastAPI(
+    title="Research Papers API",
+    description="API for serving research paper data",
+    version="1.0",
+    openapi_url="/api/v1/openapi.json",
+)
 
-    # Add argument for single paper URL
-    parser.add_argument("--paper-url", type=str, help="Single paper url to process")
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 
-    # Add argument for category of papers to process (default is Machine Learning "cs.LG"). Ref: https://arxiv.org/category_taxonomy
-    # Used if paper URL is not provide
-    parser.add_argument(
-        "--category",
-        default="cs.LG",
-        help="Category of papers to process (default is 'cs.AI'). Used if --paper-url is not provide",
-    )
+paper_processor = ArxivPaperProcessor()
+agi_client_factory = AgiClientFactory()
 
-    # Add argument for maximum number of papers to process (default is 1). Used if --paper-url is not provide
-    parser.add_argument(
-        "--max-papers",
-        type=int,
-        default=1,
-        help="Maximum number of papers to process. Used if --paper-url is not provide",
-    )
+local_agi_client = agi_client_factory.create_client("local", "llama3.2")
+anthropic_client = agi_client_factory.create_client(
+    "anthropic", "claude-3-5-sonnet-20241022"
+)
 
-    # Add argument for processed paper output file path. Default is "output/processed_papers.json"
-    parser.add_argument(
-        "--processed-paper-output",
-        default="output/processed_papers.json",
-        help="Processed paper output file path",
-    )
+post_generator = LinkedInPostGenerator(anthropic_client)
+paper_summarizer = ArxivPaperSummarizer(local_agi_client)
 
-    # Add argument for cache directory for PDFs published on arXiv. Default is "output/paper_cache"
-    parser.add_argument(
-        "--cache-dir",
-        default="output/paper_cache",
-        help="Cache directory for PDFs published on arXiv",
-    )
-
-    # Add argument for output file path for the LinkedIn post content. Default is "output/linkedin_posts.json"
-    parser.add_argument(
-        "--output",
-        default="output/linkedin_posts.json",
-        help="Output file path for the LinkedIn post content",
-    )
-
-    parser.add_argument(
-        "--agi-client",
-        default="local",
-        help="AGI client to use for generating LinkedIn post content. Choose from 'local', 'openai' or 'anthropic'. Default is 'local'",
-    )
-
-    parser.add_argument(
-        "--model-name",
-        help="Model to use for generating LinkedIn post content. Model must be supported by the AGI client.",
-    )
-
-    return parser.parse_args()
+# In-memory cache with LRU eviction policy
+papers_cache = LRUCache(maxsize=150)
 
 
-def main():
-    """Main entry point"""
-    # Get command line arguments
-    args = parse_arguments()
+# Paper data model
+class PaperSummary(BaseModel):
+    paper_id: str
+    title: str
+    published: str
+    authors: List[str]
+    url: HttpUrl
+    paper_summary: str
+    categories: List[str]
 
-    logging.info(
-        f"Starting arXiv paper processing with the following arguments: {args}"
-    )
 
-    # Create an instance of ArxivPaperProcessor with the specified cache directory
-    processor = ArxivPaperProcessor(args.cache_dir)
+# LinkedIn post data model
+class LinkedInPost(BaseModel):
+    paper_id: str
+    title: str
+    published: str
+    authors: List[str]
+    url: HttpUrl
+    linkedin_post: str
 
-    # Check if model name is provided for the AGI client. If not, set the default model name based on the AGI client
-    if args.agi_client == "local" and not args.model_name:
-        args.model_name = "llama3.2"
-    elif args.agi_client == "openai" and not args.model_name:
-        args.model_name = "gpt-3.5-turbo"
-    elif args.agi_client == "anthropic" and not args.model_name:
-        args.model_name = "claude-3-5-sonnet-20241022"
 
-    # Create an instance of the AGI client
-    agi_client = AgiClientFactory.create_client(args.agi_client, args.model_name)
+def update_paper_cache(paper_data):
+    """Update papers_cache cache"""
+    papers_cache[paper_data["paper_id"]] = paper_data
 
-    # Create an instance of the LinkedInPostGenerator
-    linkedin_post_generator = LinkedInPostGenerator(agi_client)
 
-    # Process a single paper if paper URL is provided
-    if args.paper_url:
-        logging.info(f"Processing single paper from URL: {args.paper_url}")
-        paper = processor.process_paper(args.paper_url)
+def save_to_disk(text: str, output_file_path: str):
+    """Write the output to the output file"""
+    with open(output_file_path, "w", encoding="utf-8") as file:
+        file.write(text)
 
-        if paper:
-            # Generate a LinkedIn post for the processed paper
-            post_content = linkedin_post_generator.generate_linkedin_post(paper)
 
-            if post_content:
-                logging.info(f"LinkedIn post generated successfully")
-                output = {
-                    "title": paper.title,
-                    "arxiv_id": paper.arxiv_id,
-                    "published": paper.published,
-                    "authors": paper.authors,
-                    "url": paper.url,
-                    "linkedin_post": post_content,
-                }
-                with open(args.output, "w", encoding="utf-8") as f:
-                    json.dump([output], f, ensure_ascii=False, indent=2)
+async def fetch_paper_by_url(paper_url: str) -> Dict[str, Any]:
+    """Fetch paper details by URL"""
 
-                logging.info(f"Output saved to {args.output}")
-            else:
-                logging.error("Error generating LinkedIn post")
+    paper: Paper = paper_processor.fetch_process_single_paper_url(paper_url)
+    paper_summary = paper_summarizer.summarize_paper(paper)
 
-    else:
-        # Otherwise, process multiple papers up to the specified maximum number
-        logging.info(
-            f"Processing the most recent {args.max_papers} papers, saving to {args.output}"
+    return {
+        "paper_id": paper.arxiv_id,
+        "title": paper.title,
+        "published": paper.published,
+        "authors": paper.authors,
+        "url": paper.url,
+        "paper_summary": paper_summary,
+        "categories": paper.categories,
+    }
+
+
+async def fetch_paper_by_id(paper_id: str) -> Dict[str, Any]:
+    paper = paper_processor.fetch_process_single_paper_id(paper_id)
+    paper_summary = paper_summarizer.summarize_paper(paper)
+
+    return {
+        "paper_id": paper.arxiv_id,
+        "title": paper.title,
+        "published": paper.published,
+        "authors": paper.authors,
+        "url": paper.url,
+        "paper_summary": paper_summary,
+        "categories": paper.categories,
+    }
+
+
+async def summarize_paper(paper: Paper) -> str:
+    return paper_summarizer.summarize_paper(paper)
+
+
+async def fetch_recent_papers(results: list[Any]) -> List[Dict[str, Any]]:
+    papers: list[Paper] = [paper_processor.create_paper(result) for result in results]
+
+    papers_summaries = {}
+    try:
+        tasks = {
+            paper.arxiv_id: asyncio.create_task(summarize_paper(paper))
+            for paper in papers
+        }
+
+        # Wait for all tasks to complete
+        await asyncio.gather(*tasks.values())
+
+        # Get results
+        for paper_id, task in tasks.items():
+            papers_summaries[paper_id] = task.result()
+    except Exception as e:
+        logger.error(f"Error summarizing paper: {e}")
+
+    summarized_papers = []
+    for paper in papers:
+        summarized_papers.append(
+            {
+                "paper_id": paper.arxiv_id,
+                "title": paper.title,
+                "published": paper.published,
+                "authors": paper.authors,
+                "url": paper.url,
+                "paper_summary": papers_summaries[paper.arxiv_id],
+                "categories": paper.categories,
+            }
         )
-        papers = processor.process_papers(
-            args.category, args.max_papers, args.processed_paper_output
+
+    return summarized_papers
+
+
+async def fetch_linkedin_post(paper_id: str) -> Dict[str, Any]:
+    paper: Paper = paper_processor.fetch_process_single_paper_id(paper_id, True)
+    linkedin_post = post_generator.generate_linkedin_post(paper)
+
+    return {
+        "paper_id": paper_id,
+        "title": paper.title,
+        "published": paper.published,
+        "authors": paper.authors,
+        "url": paper.url,
+        "linkedin_post": linkedin_post,
+    }
+
+
+# API Endpoints
+@app.get("/api/paper/url", response_model=PaperSummary)
+async def get_single_paper_by_url(
+    paper_url: HttpUrl = Query(..., description="URL of the research paper"),
+    background_tasks: BackgroundTasks = None,
+):
+    """Get paper details by URL"""
+    # Check cache first
+    paper_id = paper_processor.extract_arxiv_id_from_url(paper_url)
+    if paper_id in papers_cache:
+        logger.info("Returning cached result")
+        return papers_cache[paper_id]
+
+    # If not in cache, fetch from database
+    try:
+        paper_data = await asyncio.wait_for(
+            fetch_paper_by_url(str(paper_url)), timeout=10.0
         )
 
-        if papers:
-            output_list = []
-            for paper in papers:
-                # Generate a LinkedIn post for each processed paper
-                post_content = linkedin_post_generator.generate_linkedin_post(paper)
+        if background_tasks:
+            background_tasks.add_task(update_paper_cache, paper_data)
 
-                output = {
-                    "title": paper.title,
-                    "arxiv_id": paper.arxiv_id,
-                    "published": paper.published,
-                    "authors": paper.authors,
-                    "url": paper.url,
-                    "linkedin_post": post_content,
-                }
+        return paper_data
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Request timed out")
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Paper not found: {str(e)}")
 
-                output_list.append(output)
 
-            with open(args.output, "w", encoding="utf-8") as f:
-                json.dump(output_list, f, ensure_ascii=False, indent=2)
+@app.get("/api/paper/id/{paper_id}", response_model=PaperSummary)
+async def get_single_paper_by_id(
+    paper_id: str, background_tasks: BackgroundTasks = None
+):
+    """Get paper details by ID"""
+    # Check cache first
+    if paper_id in papers_cache:
+        logger.info("Returning cached result")
+        return papers_cache[paper_id]
 
-            logging.info(f"LinkedIn posts generated successfully")
+    # If not in cache, fetch from database
+    try:
+        paper_data = await asyncio.wait_for(
+            fetch_paper_by_id(str(paper_id)), timeout=10.0
+        )
+
+        if background_tasks:
+            background_tasks.add_task(update_paper_cache, paper_data)
+
+        return paper_data
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Request timed out")
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Paper not found: {str(e)}")
+
+
+@app.get("/api/papers/recent", response_model=List[PaperSummary])
+async def get_recent_papers(
+    max_num_papers: int = Query(
+        5, description="Maximum number of papers to return", ge=1, le=100
+    ),
+    category: str = Query("cs.LG", description="Research category"),
+    background_tasks: BackgroundTasks = None,
+):
+    """Get a list of recent papers in a category"""
+    try:
+        # Fetch recent from arXiv
+        arxiv_results = paper_processor.fetch_recent_from_arxiv(
+            category, max_num_papers
+        )
+        recent_paper_ids = set(
+            [
+                paper_processor.extract_arxiv_id_from_url(result.entry_id)
+                for result in arxiv_results
+            ]
+        )
+
+        cached_paper_ids = set(papers_cache.keys())
+        ids_to_process = recent_paper_ids - cached_paper_ids
+        results_to_process = [
+            result
+            for result in arxiv_results
+            if paper_processor.extract_arxiv_id_from_url(result.entry_id)
+            in ids_to_process
+        ]
+
+        # Process papers that aren't cached
+        new_papers = await fetch_recent_papers(results_to_process)
+
+        response_papers = list(
+            paper
+            for paper in papers_cache.values()
+            if paper["paper_id"] in recent_paper_ids
+        )
+
+        for paper in new_papers:
+            response_papers.append(paper)
+            if background_tasks:
+                background_tasks.add_task(update_paper_cache, paper)
+
+        return response_papers
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch recent papers: {str(e)}"
+        )
+
+
+@app.get("/api/linkedin/post/{paper_id}", response_model=LinkedInPost)
+async def get_linkedin_post_by_id(
+    paper_id: str,
+    background_tasks: BackgroundTasks = None,
+):
+    """Get LinkedIn post content for a paper"""
+    try:
+        linkedin_data = await fetch_linkedin_post(paper_id)
+
+        if background_tasks:
+            background_tasks.add_task(
+                save_to_disk, linkedin_data["linkedin_post"], "linkedin_post.txt"
+            )
+
+        return linkedin_data
+    except Exception as e:
+        raise HTTPException(
+            status_code=404, detail=f"LinkedIn post not found: {str(e)}"
+        )
+
+
+@app.get("/api/linkedin/post/url", response_model=LinkedInPost)
+async def get_linkedin_post_by_url(
+    paper_url: HttpUrl = Query(..., description="URL of the research paper"),
+    background_tasks: BackgroundTasks = None,
+):
+    """Get LinkedIn post content for a paper"""
+    try:
+        paper_id = paper_processor.extract_arxiv_id_from_url(paper_url)
+        linkedin_data = await fetch_linkedin_post(paper_id)
+
+        if background_tasks:
+            background_tasks.add_task(
+                save_to_disk, linkedin_data["linkedin_post"], "linkedin_post.txt"
+            )
+
+        return linkedin_data
+    except Exception as e:
+        raise HTTPException(
+            status_code=404, detail=f"LinkedIn post not found: {str(e)}"
+        )
+
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "cache_size": len(papers_cache),
+        "memory_usage_mb": psutil.Process().memory_info().rss / (1024 * 1024),
+        "uptime_seconds": time.time() - start_time,
+    }
+
+
+# Clear cache endpoint (for maintenance)
+@app.post("/api/admin/clear-cache", status_code=204)
+async def clear_cache():
+    papers_cache.clear()
+    return None
 
 
 if __name__ == "__main__":
-    # Entry point for the script
-    main()
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

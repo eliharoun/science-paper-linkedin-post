@@ -1,4 +1,4 @@
-# ArXiv Science Paper LinkedIn Post
+# ArXiv Science Paper LinkedIn Post Generator
 
 ## Overview
 This project automates the process of generating LinkedIn posts from scientific papers on arXiv. It extracts key information from papers and generates engaging social media content using AI.
@@ -32,8 +32,8 @@ This project automates the process of generating LinkedIn posts from scientific 
   - Suitable for privacy-focused deployments
 
 ## Prerequisites
-- Python 3.9+
-- Required packages: `anthropic`, `requests`, `arxiv`, `nltk`, `openai`, `pymupdf`, `ollama`, `tenacity`
+- Python 3.11+
+- Required packages: `anthropic`, `requests`, `arxiv`, `nltk`, `openai`, `pymupdf`, `ollama`, `tenacity`, `fastapi`, `uvicorn`, `cachetools`
 
 ## Get Everything Ready
 
@@ -82,7 +82,7 @@ Available models can be found at [Ollama.com](https://ollama.com/).
     poetry shell
     ```
 
-## Usage
+## CLI Tool Usage
 
 ### Supported Input Arguments
 
@@ -120,3 +120,15 @@ poetry run python main.py --category "cs.AI" --max-papers 3 --agi-client "openai
   ```bash
   docker run -e ANTHROPIC_API_KEY="YOUR_KEY" -v $(pwd)/output:/app/output linkedin-post-gen --agi-client anthropic --paper-url "https://arxiv.org/abs/2312.12456"
   ```
+
+## Server Usage
+
+1. Run Server
+```bash
+poetry run uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+2. Access SwaggerUI at this url
+```
+http://127.0.0.1:8000/docs
+```
+3. Interact with the APIs using the UI
